@@ -1,0 +1,378 @@
+<div class="px-4 py-6 sm:px-0">
+    <div class="bg-white shadow rounded-lg p-6">
+        <form id="searchForm" class="space-y-6">
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div>
+                    <label for="sourceCity" class="block text-sm font-medium text-gray-700">Source City</label>
+                    <input type="text" name="sourceCity" id="sourceCity" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="destinationCity" class="block text-sm font-medium text-gray-700">Destination City</label>
+                    <input type="text" name="destinationCity" id="destinationCity" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div>
+                    <label for="departDate" class="block text-sm font-medium text-gray-700">Departure Date</label>
+                    <input type="date" name="departDate" id="departDate" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="returnDate" class="block text-sm font-medium text-gray-700">Return Date</label>
+                    <input type="date" name="returnDate" id="returnDate"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                </div>
+            </div>
+
+            <div>
+                <label for="optimizationPreference" class="block text-sm font-medium text-gray-700">Optimization Preference</label>
+                <select name="optimizationPreference" id="optimizationPreference" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    <option value="cost">Cost</option>
+                    <option value="time">Time</option>
+                </select>
+            </div>
+
+            <div id="budgetField">
+                <label for="budget" class="block text-sm font-medium text-gray-700">Budget (USD)</label>
+                <input type="number" name="budget" id="budget" min="0" step="100" required
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    placeholder="Enter your maximum budget">
+            </div>
+
+            <div>
+                <button type="submit"
+                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Find Travel Options
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div id="resultsSection" class="mt-8 hidden">
+        <div class="bg-white shadow rounded-lg">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                    <button class="tab-button border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                        data-tab="preferred">Preferred Journey</button>
+                    <button class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                        data-tab="alternative">Alternative Journey</button>
+                    <button class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                        data-tab="bus">Bus Options</button>
+                </nav>
+            </div>
+            <div id="resultsContent" class="p-6">
+                <!-- Results will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('searchForm');
+        const resultsSection = document.getElementById('resultsSection');
+        const optimizationPreference = document.getElementById('optimizationPreference');
+        const budgetField = document.getElementById('budgetField');
+        const budgetInput = document.getElementById('budget');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        
+        // Add this line to store the API response data
+        let journeyData = null;
+
+        // Set initial state of budget field
+        const isCostOptimization = optimizationPreference.value === 'cost';
+        budgetField.classList.toggle('hidden', !isCostOptimization);
+        budgetInput.required = isCostOptimization;
+
+        // Show/hide budget field based on optimization preference
+        optimizationPreference.addEventListener('change', function() {
+            const isCostOptimization = this.value === 'cost';
+            budgetField.classList.toggle('hidden', !isCostOptimization);
+            budgetInput.required = isCostOptimization;
+            if (!isCostOptimization) {
+                budgetInput.value = '';
+            }
+        });
+
+        // Handle form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const data = {
+                source_city: formData.get('sourceCity'),
+                destination_city: formData.get('destinationCity'),
+                depart_date: formData.get('departDate'),
+                return_date: formData.get('returnDate'),
+                optimization_preference: formData.get('optimizationPreference'),
+                budget: formData.get('optimizationPreference') === 'cost' ? 
+                    parseFloat(formData.get('budget')) : null
+            };
+
+            console.log('Sending request with data:', data);
+
+            // Disable form while submitting
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Searching...
+            `;
+            
+            try {
+                const controller = new AbortController();
+                // Timeout after 30 seconds
+                const timeoutId = setTimeout(() => controller.abort(), 3000000);
+                console.log("timeoutId", data);
+                const response = await fetch('http://localhost:8000/api/v1/plan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    if (response.status === 500) {
+                        throw new Error('Server error: Please try again in a few moments. Our systems are processing multiple requests.');
+                    } else {
+                        throw new Error(errorData.detail || `Error: ${response.statusText}`);
+                    }
+                }
+
+                const result = await response.json();
+                // Store the response data
+                journeyData = result;
+                displayResults(journeyData);
+                resultsSection.classList.remove('hidden');
+
+                // Scroll to results
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error:', error);
+                let errorMessage = error.message;
+                if (error.name === 'AbortError') {
+                    errorMessage = 'Request timed out. Please try again.';
+                } else if (!errorMessage || errorMessage.includes('fetch')) {
+                    errorMessage = 'Unable to connect to the server. Please check your connection and try again.';
+                }
+                alert(errorMessage);
+            } finally {
+                // Re-enable form
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        });
+
+        // Function to format time duration
+        function formatDuration(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${hours}h ${mins}m`;
+        }
+
+        // Function to format date and time
+        function formatDateTime(dateTimeStr) {
+            if (!dateTimeStr) return 'N/A';
+            const date = new Date(dateTimeStr);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true
+            });
+        }
+
+        // Function to format bus time
+        function formatBusTime(timeStr) {
+            if (!timeStr) return '';
+            // If it's already in 12-hour format (e.g., "8:00 AM"), return as is
+            if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+            // If it's a date string, convert to time only
+            if (timeStr.includes('T')) {
+                const date = new Date(timeStr);
+                return date.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                });
+            }
+            return timeStr; // Return as is if none of the above
+        }
+
+        // Function to display results
+        function displayResults(data) {
+            console.log('Received data:', data);
+            const resultsContent = document.getElementById('resultsContent');
+            const activeTab = document.querySelector('.tab-button.border-blue-500').dataset.tab;
+            const optimizationPreference = document.getElementById('optimizationPreference').value;
+            console.log('Optimization preference:', optimizationPreference);
+            console.log('Active tab:', activeTab);
+
+            // Helper function to display ground transport section
+            function renderGroundTransport(transport, title) {
+                return `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700">${title}</p>
+                            <p class="text-sm text-gray-500">${transport.recommended_mode} - ${optimizationPreference === 'time' ? formatDuration(transport.duration_mins) : `$${transport.cost_usd.toFixed(2)}`}</p>
+                            <p class="text-xs text-gray-400">${transport.notes || ''}</p>
+                            ${transport.departure_time || transport.arrival_time ? 
+                                `<p class="text-xs text-gray-400">${transport.departure_time || ''} → ${transport.arrival_time || ''}</p>` : ''}
+                        </div>
+                        <span class="text-sm text-gray-500">${optimizationPreference === 'time' ? `$${transport.cost_usd.toFixed(2)}` : formatDuration(transport.duration_mins)}</span>
+                    </div>
+                `;
+            }
+
+            let content = '';
+
+            if (activeTab === 'preferred' || activeTab === 'alternative') {
+                const journey = activeTab === 'preferred' ? data.preferred_journey : data.alternative_journey;
+                console.log('Selected journey:', journey);
+                
+                if (!journey) {
+                    content = `
+                        <div class="p-4 text-center">
+                            <p class="text-gray-500">No ${activeTab} journey available.</p>
+                        </div>
+                    `;
+                } else {
+                    content = `
+                        <div class="space-y-6">
+                            <div class="flex justify-between items-center">
+                                <h3 class="text-lg font-medium text-gray-900">${optimizationPreference === 'time' ? `Total Time: ${formatDuration(journey.total_time)}` : `Total Cost: $${journey.total_cost.toFixed(2)}`}</h3>
+                                <span class="text-sm text-gray-500">${optimizationPreference === 'time' ? `Total Cost: $${journey.total_cost.toFixed(2)}` : `Total Time: ${formatDuration(journey.total_time)}`}</span>
+                            </div>
+
+                            <!-- Outbound Journey -->
+                            <div class="border rounded-lg p-4">
+                                <h4 class="text-md font-medium text-gray-900 mb-4">Outbound Journey</h4>
+                                <div class="space-y-4">
+                                    ${renderGroundTransport(journey.outbound.ground_to_airport, 'To Airport')}
+
+                                    <!-- Flight -->
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-700">Flight</p>
+                                            <p class="text-sm text-gray-500">${journey.outbound.flight.Airline || 'N/A'} - ${optimizationPreference === 'time' ? formatDuration(journey.outbound.flight['Flight Duration (mins)']) : journey.outbound.flight.Price || 'N/A'}</p>
+                                            <p class="text-xs text-gray-400">${journey.outbound.flight.Origin || 'N/A'} → ${journey.outbound.flight.Destination || 'N/A'}</p>
+                                            <p class="text-xs text-gray-400">Departure: ${formatDateTime(journey.outbound.flight.Departure)}</p>
+                                            <p class="text-xs text-gray-400">Arrival: ${formatDateTime(journey.outbound.flight.Arrival)}</p>
+                                            <p class="text-xs text-gray-400">Stops: ${journey.outbound.flight.Stops || 0}</p>
+                                        </div>
+                                        <span class="text-sm text-gray-500">${optimizationPreference === 'time' ? journey.outbound.flight.Price : formatDuration(journey.outbound.flight['Flight Duration (mins)'])}</span>
+                                    </div>
+
+                                    ${renderGroundTransport(journey.outbound.ground_from_airport, 'From Airport')}
+                                </div>
+                            </div>
+
+                            <!-- Return Journey -->
+                            <div class="border rounded-lg p-4">
+                                <h4 class="text-md font-medium text-gray-900 mb-4">Return Journey</h4>
+                                <div class="space-y-4">
+                                    ${renderGroundTransport(journey.return_journey.ground_to_airport, 'To Airport')}
+
+                                    <!-- Flight -->
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <p class="text-sm font-medium text-gray-700">Flight</p>
+                                            <p class="text-sm text-gray-500">${journey.return_journey.flight.Airline || 'N/A'} - ${optimizationPreference === 'time' ? formatDuration(journey.return_journey.flight['Flight Duration (mins)']) : journey.return_journey.flight.Price || 'N/A'}</p>
+                                            <p class="text-xs text-gray-400">${journey.return_journey.flight.Origin || 'N/A'} → ${journey.return_journey.flight.Destination || 'N/A'}</p>
+                                            <p class="text-xs text-gray-400">Departure: ${formatDateTime(journey.return_journey.flight.Departure)}</p>
+                                            <p class="text-xs text-gray-400">Arrival: ${formatDateTime(journey.return_journey.flight.Arrival)}</p>
+                                            <p class="text-xs text-gray-400">Stops: ${journey.return_journey.flight.Stops || 0}</p>
+                                        </div>
+                                        <span class="text-sm text-gray-500">${optimizationPreference === 'time' ? journey.return_journey.flight.Price : formatDuration(journey.return_journey.flight['Flight Duration (mins)'])}</span>
+                                    </div>
+
+                                    ${renderGroundTransport(journey.return_journey.ground_from_airport, 'From Airport')}
+                                </div>
+                            </div>
+
+                            <!-- Summary -->
+                            <div class="border rounded-lg p-4">
+                                <h4 class="text-md font-medium text-gray-900 mb-4">${optimizationPreference === 'time' ? 'Time' : 'Cost'} Breakdown</h4>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Flight ${optimizationPreference === 'time' ? 'Duration' : 'Cost'}</p>
+                                        <p class="font-medium">${optimizationPreference === 'time' ? formatDuration(journey.outbound.flight['Flight Duration (mins)'] + journey.return_journey.flight['Flight Duration (mins)']) : `$${journey.flight_cost.toFixed(2)}`}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ground Transport ${optimizationPreference === 'time' ? 'Duration' : 'Cost'}</p>
+                                        <p class="font-medium">${optimizationPreference === 'time' ? 
+                                            formatDuration(journey.outbound.ground_to_airport.duration_mins + 
+                                                        journey.outbound.ground_from_airport.duration_mins + 
+                                                        journey.return_journey.ground_to_airport.duration_mins + 
+                                                        journey.return_journey.ground_from_airport.duration_mins) 
+                                            : `$${journey.ground_cost.toFixed(2)}`}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } else if (activeTab === 'bus' && data.available_bus_options) {
+                content = `
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-medium text-gray-900">Available Bus Options</h3>
+                        ${Object.entries(data.available_bus_options).map(([direction, option]) => `
+                            <div class="border rounded-lg p-4">
+                                <h4 class="text-md font-medium text-gray-900 mb-2">${direction.charAt(0).toUpperCase() + direction.slice(1)}</h4>
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-700">${option.provider}</p>
+                                        <p class="text-sm text-gray-500">${formatBusTime(option.departure_time)} → ${formatBusTime(option.arrival_time)}</p>
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-900">${option.price}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                content = `
+                    <div class="p-4 text-center">
+                        <p class="text-gray-500">No options available for this tab.</p>
+                    </div>
+                `;
+            }
+
+            resultsContent.innerHTML = content;
+        }
+
+        // Handle tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active state from all buttons
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('border-blue-500', 'text-blue-600');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                });
+                
+                // Add active state to clicked button
+                this.classList.remove('border-transparent', 'text-gray-500');
+                this.classList.add('border-blue-500', 'text-blue-600');
+                
+                // Update content based on selected tab using the stored data
+                if (journeyData) {
+                    displayResults(journeyData);
+                }
+            });
+        });
+    });
+</script> 
